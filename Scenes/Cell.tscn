@@ -1,0 +1,9 @@
+[gd_scene load_steps=2 format=3 uid="uid://crbs2yseqrx2p"]
+
+[ext_resource type="Texture2D" uid="uid://bcpwk2fi6hjy6" path="res://img/White.png" id="1_x26kp"]
+
+[node name="Cell" type="Node2D"]
+
+[node name="Sprite" type="Sprite2D" parent="."]
+position = Vector2(50, 50)
+texture = ExtResource("1_x26kp")
