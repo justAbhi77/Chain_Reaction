@@ -15,11 +15,6 @@ run/main_scene="res://Scenes/root.tscn"
 config/features=PackedStringArray("4.1", "Forward Plus")
 config/icon="res://img/icon.svg"
 
-[display]
-
-window/size/viewport_width=800
-window/size/viewport_height=600
-
 [dotnet]
 
 project/assembly_name="Chain_Reaction"
