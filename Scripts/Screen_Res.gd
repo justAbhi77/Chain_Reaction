@@ -1,6 +1,11 @@
 extends Node
 
+signal SubcellExplosionCalculated
+signal cellExplosionCalculated
+
 var cellSprite = preload("res://Scenes/Cell.tscn")
+var WinScreen = preload("res://Scenes/WinScreen.tscn")
+
 var viewport: Viewport
 var pooledCells: Array = []
 var boardSize_min: float
@@ -12,19 +17,31 @@ var cellsStartOffset: Vector2
 var cellsOffset: Vector2
 var BoardStart: Vector2
 var scale: Vector2
+var WhiteColor: Color = Color(1, 1, 1)
 var BlackColor: Color = Color(0, 0, 0)
 var isRedTurn: bool = true
 var RedTColor: Color = Color(1, 1, 0.5, 0.5)
 var BlueTColor: Color = Color(0.5, 1, 1, 0.5)
+var RedHasPlayed:bool = false
+var BlueHasPlayed:bool = false
+var RoundWon:bool
 
 # Constants
-const BOARD_SIZE = 10
+const BOARD_SIZE:int = 10
+const MULTI_CLICK_CORNERS:int = 2
+const MULTI_CLICK_BORDERS:int = 3
+const MULTI_CLICK_ALL:int = 4
+
+var CalculatingExplosion:bool = false
+var timerWaitTime
 
 # Called when the node enters the scene tree for the first time.
 func _ready():
 	viewport = get_viewport()
 	viewport.size_changed.connect(viewport_Changed)
 	setup(viewport.size)
+	timerWaitTime = $Timer.wait_time
+	cellExplosionCalculated.connect(checkWin)
 
 func viewport_Changed():
 	setup(viewport.size)
@@ -39,7 +56,7 @@ func setup(size: Vector2):
 	scale = Vector2(cellSize_min / 100, cellSize_max / 100) if size.x < size.y else Vector2(cellSize_max / 100, cellSize_min / 100)
 	BoardStart = boardCenter - cellsStartOffset
 
-	var index 
+	var index
 	var instance
 
 	for i in range(BOARD_SIZE):
@@ -47,7 +64,9 @@ func setup(size: Vector2):
 			
 			if pooledCells.size() < BOARD_SIZE * BOARD_SIZE:
 				instance = cellSprite.instantiate()
-				instance.get_node("Sprite").modulate = BlackColor if (i + j) % 2 != 0 else Color(1, 1, 1, 1)
+				if (i + j) % 2 != 0:
+					instance.get_node("Sprite").modulate = BlackColor
+					instance.get_node("Label").modulate = WhiteColor
 				pooledCells.append(instance)
 			else:
 				index = getIndex(j,i)
@@ -66,8 +85,11 @@ func getIndex(i: int, j: int) -> int:
 	return i + (j * BOARD_SIZE)
 
 func _input(event):
+	if RoundWon or CalculatingExplosion:
+		return
+	
 	# Mouse in viewport coordinates.
-	if event.is_pressed() and event is InputEventMouseButton:
+	if (event is InputEventMouseButton and event.is_pressed()) or (event is InputEventScreenTouch and event.is_pressed()):
 		var pos = Vector2i(event.position - BoardStart)
 		if pos.x < 0 or pos.y < 0:
 			return
@@ -83,10 +105,121 @@ func _input(event):
 		if cellSpriteNode.modulate == NcurrentTColor:
 			return
 		elif cellSpriteNode.modulate == currentTColor:
-			print("Multi Click at: ", index_i, " ", index_j)
-			# TO DO add click for multiple times
+			pooledCells[index].cell_contents = pooledCells[index].cell_contents+1
+			print("Multi Click at: ", index_i, " ", index_j," With Cell Content number ",pooledCells[index].cell_contents," for ","Red" if isRedTurn else "Blue"," Team")
+			var CheckMultiClickType:bool= false
+			if (index_i == 0 and index_j == 0) or (index_i == 0 and index_j == BOARD_SIZE-1) or (index_i == BOARD_SIZE-1 and index_j == 0) or (index_i == BOARD_SIZE-1 and index_j == BOARD_SIZE-1):
+				if pooledCells[index].cell_contents == MULTI_CLICK_CORNERS:
+					CheckMultiClickType = true
+			elif index_i == 0 or index_i == BOARD_SIZE-1 or index_j ==0 or index_j == BOARD_SIZE-1:
+				if pooledCells[index].cell_contents == MULTI_CLICK_BORDERS:
+					CheckMultiClickType = true
+			elif pooledCells[index].cell_contents == MULTI_CLICK_ALL:
+					CheckMultiClickType = true
+				
+			if CheckMultiClickType:
+				pooledCells[index].cell_contents = 0
+				if (index_i+index_j)%2 != 0:
+					pooledCells[index].get_node("Sprite").modulate = BlackColor
+				else:
+					pooledCells[index].get_node("Sprite").modulate = WhiteColor
+				calculateExplosion(index_i,index_j,isRedTurn,true)
 		else:
-			print("Mouse Click at: ", index_i, " ", index_j)
+			pooledCells[index].cell_contents = pooledCells[index].cell_contents+1
+			print("Mouse Click at: ", index_i, " ", index_j," for ","Red" if isRedTurn else "Blue"," Team")
 			cellSpriteNode.modulate = currentTColor
-
+		
+		if isRedTurn:
+			RedHasPlayed = true
+		else:
+			BlueHasPlayed = true
+		
 		isRedTurn = !isRedTurn
+
+func calculateExplosion(i,j,Turn,isFirstCall):
+	CalculatingExplosion = true
+	
+	$Timer.wait_time = timerWaitTime
+	$Timer.start()
+	await $Timer.timeout
+	
+	var ExplodedNeighbour=[]
+	var index = getIndex(i,j)
+	
+	if pooledCells[index].cell_contents == MULTI_CLICK_ALL:
+		pooledCells[index].cell_contents = 0
+		if (i+j)%2 != 0:
+			pooledCells[index].get_node("Sprite").modulate = BlackColor
+		else:
+			pooledCells[index].get_node("Sprite").modulate = WhiteColor
+	
+	for fori in range(-1,2):
+		for forj in range(-1,2):
+			if (fori ==0 and forj ==0) or (abs(fori)+abs(forj)) == 2:
+				continue
+			
+			var neighbouri = i+fori
+			var neighbourj = j+forj
+			
+			if neighbouri<0 or neighbourj<0 or neighbouri>=BOARD_SIZE or neighbourj>= BOARD_SIZE:
+				continue
+			
+			else:
+				index = getIndex(neighbouri,neighbourj)
+				pooledCells[index].cell_contents = pooledCells[index].cell_contents+1
+				pooledCells[index].get_node("Sprite").modulate = RedTColor if Turn else BlueTColor
+				
+				if pooledCells[index].cell_contents == MULTI_CLICK_ALL:
+					ExplodedNeighbour.append([neighbouri,neighbourj])
+			
+			$Timer.wait_time = timerWaitTime*0.5
+			$Timer.start()
+			await $Timer.timeout
+	
+	if len(ExplodedNeighbour) != 0:
+		for neighbourIndex in ExplodedNeighbour:
+			calculateExplosion(neighbourIndex[0],neighbourIndex[1],Turn,false)
+			await SubcellExplosionCalculated
+	
+	if isFirstCall:
+		CalculatingExplosion = false
+		cellExplosionCalculated.emit()
+	else:
+		SubcellExplosionCalculated.emit()
+
+func checkWin():
+	if not RedHasPlayed or not BlueHasPlayed:
+		return
+	
+	var redCells:int = 0
+	var blueCells:int = 0
+	var index
+	var cellSpriteNode
+	var breakLoop:bool = false
+	for i in range(BOARD_SIZE):
+		for j in range(BOARD_SIZE):
+			index = getIndex(j,i)
+			cellSpriteNode = pooledCells[index].get_node("Sprite")
+			if cellSpriteNode.modulate == RedTColor:
+				redCells += 1
+			elif cellSpriteNode.modulate == BlueTColor:
+				blueCells += 1
+			if redCells >0 and blueCells >0:
+				breakLoop = true
+				break
+		if breakLoop:
+			break
+	if redCells >0 and blueCells >0:
+		RoundWon = false
+		return
+	RoundWon = true
+	var Wininstance = WinScreen.instantiate()
+	if redCells >0:
+		print("Red Wins")
+		Wininstance.get_node("Panel/Label").text = "Red Wins!"
+	else:
+		print("Blue Wins")
+		Wininstance.get_node("Panel/Label").text = "Blue Wins!"
+	
+	if not Wininstance.is_inside_tree():
+		add_child(Wininstance)
