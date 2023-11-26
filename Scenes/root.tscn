@@ -1,9 +1,14 @@
-[gd_scene load_steps=2 format=3 uid="uid://cr6f35n0uqr66"]
+[gd_scene load_steps=3 format=3 uid="uid://cr6f35n0uqr66"]
 
 [ext_resource type="Script" path="res://Scripts/Screen_Res.gd" id="1_bo85u"]
+[ext_resource type="PackedScene" uid="uid://d4nsrcvan0h4h" path="res://Scenes/WinScreen.tscn" id="2_kqpmq"]
 
 [node name="Root" type="Node2D"]
 script = ExtResource("1_bo85u")
 
 [node name="Timer" type="Timer" parent="."]
 wait_time = 0.7
+
+[node name="WinScreen" parent="." instance=ExtResource("2_kqpmq")]
+offset_right = 1152.0
+offset_bottom = 648.0

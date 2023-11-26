@@ -22,12 +22,13 @@ var BlackColor: Color = Color(0, 0, 0)
 var isRedTurn: bool = true
 var RedTColor: Color = Color(1, 1, 0.5, 0.5)
 var BlueTColor: Color = Color(0.5, 1, 1, 0.5)
+var CheckMultiClickType:bool= false
 var RedHasPlayed:bool = false
 var BlueHasPlayed:bool = false
 var RoundWon:bool
 
 # Constants
-const BOARD_SIZE:int = 10
+const BOARD_SIZE:int = 4
 const MULTI_CLICK_CORNERS:int = 2
 const MULTI_CLICK_BORDERS:int = 3
 const MULTI_CLICK_ALL:int = 4
@@ -37,11 +38,11 @@ var timerWaitTime
 
 # Called when the node enters the scene tree for the first time.
 func _ready():
+	timerWaitTime = $Timer.wait_time
 	viewport = get_viewport()
 	viewport.size_changed.connect(viewport_Changed)
-	setup(viewport.size)
-	timerWaitTime = $Timer.wait_time
 	cellExplosionCalculated.connect(checkWin)
+	setup(viewport.size)
 
 func viewport_Changed():
 	setup(viewport.size)
@@ -54,6 +55,7 @@ func setup(size: Vector2):
 	boardCenter = size / 2
 	cellsStartOffset = Vector2(cellSize_min * BOARD_SIZE / 2, cellSize_max * BOARD_SIZE / 2) if size.x < size.y else Vector2(cellSize_max * BOARD_SIZE / 2, cellSize_min * BOARD_SIZE / 2)
 	scale = Vector2(cellSize_min / 100, cellSize_max / 100) if size.x < size.y else Vector2(cellSize_max / 100, cellSize_min / 100)
+	
 	BoardStart = boardCenter - cellsStartOffset
 
 	var index
@@ -107,7 +109,7 @@ func _input(event):
 		elif cellSpriteNode.modulate == currentTColor:
 			pooledCells[index].cell_contents = pooledCells[index].cell_contents+1
 			print("Multi Click at: ", index_i, " ", index_j," With Cell Content number ",pooledCells[index].cell_contents," for ","Red" if isRedTurn else "Blue"," Team")
-			var CheckMultiClickType:bool= false
+			CheckMultiClickType = false
 			if (index_i == 0 and index_j == 0) or (index_i == 0 and index_j == BOARD_SIZE-1) or (index_i == BOARD_SIZE-1 and index_j == 0) or (index_i == BOARD_SIZE-1 and index_j == BOARD_SIZE-1):
 				if pooledCells[index].cell_contents == MULTI_CLICK_CORNERS:
 					CheckMultiClickType = true
@@ -115,7 +117,7 @@ func _input(event):
 				if pooledCells[index].cell_contents == MULTI_CLICK_BORDERS:
 					CheckMultiClickType = true
 			elif pooledCells[index].cell_contents == MULTI_CLICK_ALL:
-					CheckMultiClickType = true
+				CheckMultiClickType = true
 				
 			if CheckMultiClickType:
 				pooledCells[index].cell_contents = 0
@@ -146,12 +148,11 @@ func calculateExplosion(i,j,Turn,isFirstCall):
 	var ExplodedNeighbour=[]
 	var index = getIndex(i,j)
 	
-	if pooledCells[index].cell_contents == MULTI_CLICK_ALL:
-		pooledCells[index].cell_contents = 0
-		if (i+j)%2 != 0:
-			pooledCells[index].get_node("Sprite").modulate = BlackColor
-		else:
-			pooledCells[index].get_node("Sprite").modulate = WhiteColor
+	pooledCells[index].cell_contents = 0
+	if (i+j)%2 != 0:
+		pooledCells[index].get_node("Sprite").modulate = BlackColor
+	else:
+		pooledCells[index].get_node("Sprite").modulate = WhiteColor
 	
 	for fori in range(-1,2):
 		for forj in range(-1,2):
@@ -168,9 +169,18 @@ func calculateExplosion(i,j,Turn,isFirstCall):
 				index = getIndex(neighbouri,neighbourj)
 				pooledCells[index].cell_contents = pooledCells[index].cell_contents+1
 				pooledCells[index].get_node("Sprite").modulate = RedTColor if Turn else BlueTColor
+				CheckMultiClickType = false
+			if (neighbouri == 0 and neighbourj == 0) or (neighbouri == 0 and neighbourj == BOARD_SIZE-1) or (neighbouri == BOARD_SIZE-1 and neighbourj == 0) or (neighbouri == BOARD_SIZE-1 and neighbourj == BOARD_SIZE-1):
+				if pooledCells[index].cell_contents == MULTI_CLICK_CORNERS:
+					CheckMultiClickType = true
+			elif neighbouri == 0 or neighbouri == BOARD_SIZE-1 or neighbourj ==0 or neighbourj == BOARD_SIZE-1:
+				if pooledCells[index].cell_contents == MULTI_CLICK_BORDERS:
+					CheckMultiClickType = true
+			elif pooledCells[index].cell_contents == MULTI_CLICK_ALL:
+				CheckMultiClickType = true
 				
-				if pooledCells[index].cell_contents == MULTI_CLICK_ALL:
-					ExplodedNeighbour.append([neighbouri,neighbourj])
+			if CheckMultiClickType:
+				ExplodedNeighbour.append([neighbouri,neighbourj])
 			
 			$Timer.wait_time = timerWaitTime*0.5
 			$Timer.start()
@@ -214,6 +224,7 @@ func checkWin():
 		return
 	RoundWon = true
 	var Wininstance = WinScreen.instantiate()
+	Wininstance.position = boardCenter
 	if redCells >0:
 		print("Red Wins")
 		Wininstance.get_node("Panel/Label").text = "Red Wins!"
