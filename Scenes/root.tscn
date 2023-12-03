@@ -10,5 +10,7 @@ script = ExtResource("1_bo85u")
 wait_time = 0.7
 
 [node name="WinScreen" parent="." instance=ExtResource("2_kqpmq")]
+visible = false
+z_index = 100
 offset_right = 1152.0
 offset_bottom = 648.0

@@ -223,8 +223,8 @@ func checkWin():
 		RoundWon = false
 		return
 	RoundWon = true
-	var Wininstance = WinScreen.instantiate()
-	Wininstance.position = boardCenter
+	var Wininstance = $WinScreen
+	Wininstance.visible = true
 	if redCells >0:
 		print("Red Wins")
 		Wininstance.get_node("Panel/Label").text = "Red Wins!"
